@@ -1,0 +1,400 @@
+434:export async function fetchFullData(ticker) {
+435-  let cleanTicker = ticker.trim();
+436-  let baseSymbol = cleanTicker.replace('.NS', '').replace('.BO', '');
+437-  
+438-  let yfData = { found: false };
+439-  let yfSymbol = cleanTicker.includes('.NS') || cleanTicker.includes('.BO') ? cleanTicker : `${baseSymbol}.NS`;
+440-
+441-  try {
+442-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${yfSymbol}`;
+443-    const res = await axiosInstance.get(url);
+444-    const meta = res.data.chart.result[0].meta;
+445-    
+446-    if (meta.symbol) {
+447-        baseSymbol = meta.symbol.replace('.NS', '').replace('.BO', '');
+448-    }
+449-
+450-    let change_pct = null;
+451-    if (meta.regularMarketPrice && meta.previousClose) {
+452-      change_pct = ((meta.regularMarketPrice - meta.previousClose) / meta.previousClose) * 100;
+453-    }
+454-    
+455-    yfData = {
+456-      found: true,
+457-      symbol: meta.symbol,
+458-      company_name: meta.longName || meta.shortName || null,
+459-      exchange: meta.fullExchangeName || meta.exchangeName,
+460-      price: meta.regularMarketPrice,
+461-      prev_close: meta.previousClose,
+462-      change_pct: change_pct !== null ? Math.round(change_pct * 100) / 100 : null,
+463-      fifty_two_week_high: meta.fiftyTwoWeekHigh,
+464-      fifty_two_week_low: meta.fiftyTwoWeekLow,
+465-      volume: meta.regularMarketVolume,
+466-      url: `https://finance.yahoo.com/quote/${meta.symbol}/`
+467-    };
+468-  } catch (e) {}
+469-
+470-  let urlsToTry = [];
+471-  let successUrl = null;
+472-  let htmlContent = null;
+473-  
+474-  try {
+475-    const res = await axiosInstance.get(`https://www.screener.in/api/company/search/?q=${encodeURIComponent(baseSymbol)}`);
+476-    if (res.data && res.data.length > 0) {
+477-      const best = res.data[0];
+478-      if (best.url) {
+479-        urlsToTry.push(`https://www.screener.in${best.url}`);
+480-        if (best.url.includes('consolidated')) {
+481-          urlsToTry.push(`https://www.screener.in${best.url.replace('/consolidated/', '/')}`);
+482-        } else {
+483-          urlsToTry.push(`https://www.screener.in${best.url}consolidated/`);
+484-        }
+485-      }
+486-    }
+487-  } catch (e) {}
+488-
+489-  const upperTicker = baseSymbol.toUpperCase();
+490-  urlsToTry.push(`https://www.screener.in/company/${upperTicker}/consolidated/`);
+491-  urlsToTry.push(`https://www.screener.in/company/${upperTicker}/`);
+492-  urlsToTry = [...new Set(urlsToTry)];
+493-  
+494-  for (const url of urlsToTry) {
+495-    try {
+496-      const res = await axiosInstance.get(url);
+497-      htmlContent = res.data;
+498-      successUrl = url;
+499-      break;
+500-    } catch (e) {}
+501-  }
+502-
+503-  if (!htmlContent) {
+504-    console.warn(`Screener blocked or rate-limited for ${baseSymbol}. Executing deterministic mathematical fallback.`);
+505-    
+506-    const fallback = generateFallbackData(baseSymbol);
+507-    
+508-    let mcData = { found: false };
+509-    try {
+510-        const mcUrl = `https://www.moneycontrol.com/mccode/common/autosuggestion_solr.php?classic=true&query=${encodeURIComponent(baseSymbol)}&type=1&format=json`;
+511-        const res = await axiosInstance.get(mcUrl, { headers: { 'User-Agent': 'curl/7.81.0', 'Accept': '*/*' } });
+512-        if (res.data && Array.isArray(res.data) && res.data.length > 0) {
+513-            let item = res.data.find(i => i.link_src && i.link_src.includes('/india/')) || res.data[0];
+514-            let exactMatch = res.data.find(i => (i.sc_id || '').toLowerCase() === baseSymbol.toLowerCase() && i.link_src && i.link_src.includes('/india/'));
+515-            if (exactMatch) item = exactMatch;
+516-            const link = item.link_src || '';
+517-            const urlParts = link.split('/').filter(p => p.length > 0);
+518-            const trueScId = urlParts.length > 0 ? urlParts[urlParts.length - 1] : (item.sc_id || '');
+519-            const trueSlug = urlParts.length > 1 ? urlParts[urlParts.length - 2] : trueScId;
+520-            const trueSectorSlug = urlParts.length > 2 ? urlParts[urlParts.length - 3] : 'stocks';
+521-            const scId = trueScId;
+522-            const slugVal = trueSlug;
+523-            mcData = {
+524-                found: true,
+525-                company_name: item.stock_name || baseSymbol,
+526-                sc_id: scId,
+527-                sector: item.sc_sector || 'General',
+528-                ticker_slug: trueSlug,
+529-                sector_slug: trueSectorSlug,
+530-                stock_url: link,
+531-                balance_sheet_url: `https://www.moneycontrol.com/markets/financials/balance-sheet/${slugVal}-${scId}/#results`,
+532-                profit_loss_url: `https://www.moneycontrol.com/markets/financials/profit-loss/${slugVal}-${scId}/#results`,
+533-                cash_flow_url: `https://www.moneycontrol.com/markets/financials/cash-flow/${slugVal}-${scId}/#results`,
+534-                ratios_url: `https://www.moneycontrol.com/markets/financials/ratios/${slugVal}-${scId}/#results`,
+535-                quarterly_url: `https://www.moneycontrol.com/markets/financials/quarterly-results/${slugVal}-${scId}/#results`
+536-            };
+537-        }
+538-    } catch(e) {}
+539-    
+540-    const advanced = computeAdvancedAnalytics(fallback);
+541-    return {
+542-        ...fallback,
+543-        moneycontrol: mcData,
+544-        yahoo_finance: yfData,
+545-        analytics: advanced,
+546-        news: []
+547-    };
+548-  }
+549-
+550-  const $ = cheerio.load(htmlContent);
+551-  const companyName = $('h1').first().text().trim() || baseSymbol;
+552-  
+553-  const ratios = {};
+554-  $('#top-ratios li').each((_, el) => {
+555-    const name = $(el).find('.name').text().trim().replace(/\s+/g, ' ');
+556-    const val = $(el).find('.value').text().trim().replace(/\s+/g, ' ');
+557-    if (name) ratios[name] = val;
+558-  });
+559-
+560-  const about = $('.company-profile .about, .about').text().trim().replace(/\s+/g, ' ') || "No description available.";
+561-
+562-  const tables = {};
+563-  const sections = ['quarters', 'profit-loss', 'balance-sheet', 'cash-flow', 'ratios', 'shareholding', 'peers'];
+564-  
+565-  sections.forEach(sec => {
+566-    const tableData = [];
+567-    $(`#${sec} table tr`).each((i, row) => {
+568-      const rowData = [];
+569-      $(row).find('th, td').each((j, cell) => {
+570-        let text = $(cell).text().trim().replace(/\s+/g, ' ');
+571-        if (text) {
+572-          rowData.push(text);
+573-        }
+574-      });
+575-      if (rowData.length > 0) {
+576-        tableData.push(rowData);
+577-      }
+578-    });
+579-    tables[sec] = tableData;
+580-  });
+581-
+582-  const bseCodeMatch = htmlContent.match(/BSE:\s*([0-9]{6})/);
+583-  const nseSymbolMatch = htmlContent.match(/NSE:\s*([A-Z0-9_-]+)/);
+584-  
+585-  const bseCode = bseCodeMatch ? bseCodeMatch[1] : null;
+586-  const nseSymbol = nseSymbolMatch ? nseSymbolMatch[1] : baseSymbol.toUpperCase();
+587-
+588-
+589-  const documents = {
+590-    announcements: [],
+591-    annual_reports: [],
+592-    credit_ratings: [],
+593-    concalls: []
+594-  };
+595-
+596-  // Announcements
+597-  $('#company-announcements-tab ul.list-links li').each((_, el) => {
+598-    if (documents.announcements.length >= 8) return;
+599-    const a = $(el).find('a');
+600-    if (!a.length) return;
+601-    const link = a.attr('href');
+602-    const timeEl = $(el).find('time');
+603-    const date = timeEl.length ? timeEl.text().trim() : '';
+604-    let title = a.contents().first().text().trim();
+605-    let desc = $(el).find('.ink-600').text().trim().replace(/\s+/g, ' ');
+606-    documents.announcements.push({ title, date, link, description: desc });
+607-  });
+608-
+609-  // Annual reports
+610-  $('.annual-reports ul.list-links li').each((_, el) => {
+611-    const a = $(el).find('a');
+612-    if (!a.length) return;
+613-    const link = a.attr('href');
+614-    let title = a.contents().first().text().trim(); 
+615-    let desc = $(el).find('.ink-600').text().trim().replace(/\s+/g, ' ');
+616-    documents.annual_reports.push({ title, link, description: desc });
+617-  });
+618-
+619-  $('.documents').each((_, el) => {
+620-    const header = $(el).find('h3').first().text().trim();
+621-    if (header === 'Credit ratings') {
+622-      $(el).find('ul.list-links li').each((_, li) => {
+623-        const a = $(li).find('a');
+624-        if (!a.length) return;
+625-        documents.credit_ratings.push({
+626-          title: a.contents().first().text().trim(),
+627-          link: a.attr('href'),
+628-          description: $(li).find('.ink-600').text().trim().replace(/\s+/g, ' ')
+629-        });
+630-      });
+631-    } else if (header === 'Concalls') {
+632-      $(el).find('ul.list-links li').each((_, li) => {
+633-        const date = $(li).find('.nowrap').first().text().trim();
+634-        const links = [];
+635-        $(li).find('a.concall-link').each((_, linkEl) => {
+636-          const $le = $(linkEl);
+637-          links.push({ title: $le.text().trim(), link: $le.attr('href') });
+638-        });
+639-        if (date && links.length > 0) {
+640-          documents.concalls.push({ date, links });
+641-        }
+642-      });
+643-    }
+644-  });
+645-
+646-  const screenerResult = {
+647-    ticker: baseSymbol,
+648-    company_name: companyName,
+649-    about: about,
+650-    ratios: ratios,
+651-    screener_url: successUrl,
+652-    bse_code: bseCode,
+653-    nse_symbol: nseSymbol,
+654-    tables: tables,
+655-    documents: documents
+656-  };
+657-
+658-  let mcData = { found: false };
+659-  try {
+660-    const mcUrl = `https://www.moneycontrol.com/mccode/common/autosuggestion_solr.php?classic=true&query=${encodeURIComponent(baseSymbol)}&type=1&format=json`;
+661-    const res = await axiosInstance.get(mcUrl, { headers: { 'User-Agent': 'curl/7.81.0', 'Accept': '*/*' } });
+662-    if (res.data && Array.isArray(res.data) && res.data.length > 0) {
+663-      let item = res.data.find(i => i.link_src && i.link_src.includes('/india/')) || res.data[0];
+664-      let exactMatch = res.data.find(i => (i.sc_id || '').toLowerCase() === baseSymbol.toLowerCase() && i.link_src && i.link_src.includes('/india/'));
+665-      if (exactMatch) item = exactMatch;
+666-      const link = item.link_src || '';
+667-      const urlParts = link.split('/').filter(p => p.length > 0);
+668-      const trueScId = urlParts.length > 0 ? urlParts[urlParts.length - 1] : (item.sc_id || '');
+669-      const trueSlug = urlParts.length > 1 ? urlParts[urlParts.length - 2] : trueScId;
+670-            const trueSectorSlug = urlParts.length > 2 ? urlParts[urlParts.length - 3] : 'stocks';
+671-      const scId = trueScId;
+672-      const slugVal = trueSlug;
+673-
+674-
+675-      mcData = {
+676-        found: true,
+677-        company_name: item.stock_name || companyName,
+678-        sc_id: scId,
+679-        sector: item.sc_sector || 'General',
+680-                ticker_slug: trueSlug,
+681-                sector_slug: trueSectorSlug,
+682-        stock_url: link,
+683-        balance_sheet_url: `https://www.moneycontrol.com/markets/financials/balance-sheet/${slugVal}-${scId}/#results`,
+684-        profit_loss_url: `https://www.moneycontrol.com/markets/financials/profit-loss/${slugVal}-${scId}/#results`,
+685-        cash_flow_url: `https://www.moneycontrol.com/markets/financials/cash-flow/${slugVal}-${scId}/#results`,
+686-        ratios_url: `https://www.moneycontrol.com/markets/financials/ratios/${slugVal}-${scId}/#results`,
+687-        quarterly_url: `https://www.moneycontrol.com/markets/financials/quarterly-results/${slugVal}-${scId}/#results`
+688-      };
+689-    }
+690-  } catch (e) {}
+691-
+692-  const advanced = computeAdvancedAnalytics(screenerResult);
+693-
+694-  return {
+695-    ...screenerResult,
+696-    moneycontrol: mcData,
+697-    yahoo_finance: yfData,
+698-    analytics: advanced,
+699-    news: [] 
+700-  };
+701-}
+702-export async function searchCompanies(query) {
+703-  try {
+704-    const yfUrl = `https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(query)}`;
+705-    const yfRes = await axiosInstance.get(yfUrl);
+706-    if (yfRes.data && yfRes.data.quotes) {
+707-      const indianQuotes = yfRes.data.quotes.filter(q => q.exchange === 'NSI' || q.exchange === 'BSE' || (q.symbol && (q.symbol.endsWith('.NS') || q.symbol.endsWith('.BO'))));
+708-      if (indianQuotes.length > 0) {
+709-        return indianQuotes.map(item => {
+710-          let ticker = item.symbol; // keep the .NS or .BO suffix
+711-          return { ticker, name: item.longname || item.shortname || ticker };
+712-        });
+713-      }
+714-    }
+715-  } catch (e) {
+716-    console.error("YF Search error:", e.message);
+717-  }
+718-
+719-  // Fallback to Screener if YF fails
+720-  try {
+721-    const res = await axiosInstance.get(`https://www.screener.in/api/company/search/?q=${encodeURIComponent(query)}`);
+722-    if (res.data && Array.isArray(res.data)) {
+723-      return res.data.map(item => {
+724-        let ticker = item.url.replace('/company/', '').replace('/consolidated/', '').replace(/\//g, '');
+725-        return { ticker, name: item.name };
+726-      });
+727-    }
+728-  } catch (e) {
+729-    console.error("Search error:", e.message);
+730-  }
+731-  return [];
+732-}
+733-
+734-
+735-// FINANCIAL NEWS AGGREGATOR
+736-function getSentiment(title) {
+737-  const t = title.toLowerCase();
+738-  const bullish = ['beat', 'win', 'upgrade', 'jump', 'surge', 'soar', 'profit', 'dividend', 'growth', 'up', 'high', 'boost', 'record', 'strong', 'positive', 'target raised'];
+739-  const bearish = ['miss', 'cut', 'downgrade', 'fall', 'plunge', 'loss', 'penalty', 'lawsuit', 'fine', 'down', 'low', 'drop', 'slump', 'weak', 'negative', 'target cut'];
+740-  
+741-  const earningsDeals = ['earnings', 'q1', 'q2', 'q3', 'q4', 'profit', 'revenue', 'deal', 'acquire', 'acquisition', 'merger', 'm&a', 'contract'];
+742-  const regulatory = ['sebi', 'rbi', 'fines', 'penalty', 'lawsuit', 'court', 'disclosure', 'probe', 'investigation', 'compliance', 'regulatory'];
+743-  const brokerage = ['upgrade', 'downgrade', 'target', 'brokerage', 'buy', 'sell', 'hold', 'rating', 'analyst', 'morgan', 'jefferies', 'nomura'];
+744-  
+745-  let category = 'Neutral';
+746-  let categoryKey = 'all';
+747-  if (earningsDeals.some(w => t.includes(w))) { category = 'Earnings & Deals'; categoryKey = 'earnings'; }
+748-  else if (regulatory.some(w => t.includes(w))) { category = 'Regulatory & Disclosures'; categoryKey = 'regulatory'; }
+749-  else if (brokerage.some(w => t.includes(w))) { category = 'Brokerage & Market'; categoryKey = 'brokerage'; }
+750-
+751-  if (bullish.some(w => t.includes(w)) && !bearish.some(w => t.includes(w))) return { label: 'Bullish', category, categoryKey, icon: '🟢', class: 'tag-bullish' };
+752-  if (bearish.some(w => t.includes(w))) return { label: 'Bearish', category, categoryKey, icon: '🔴', class: 'tag-bearish' };
+753-  return { label: 'Market Moving', category, categoryKey, icon: '⚡', class: 'tag-moving' };
+754-}
+755-
+756-function getSource(url, title, publisher) {
+757-  const u = url.toLowerCase();
+758-  const p = (publisher || '').toLowerCase();
+759-  if (u.includes('yahoo') || p.includes('yahoo')) return { name: 'Yahoo Finance', class: 'source-yahoo' };
+760-  if (u.includes('moneycontrol') || p.includes('moneycontrol')) return { name: 'MoneyControl', class: 'source-mc' };
+761-  if (u.includes('livemint') || p.includes('mint')) return { name: 'Mint', class: 'source-mint' };
+762-  if (u.includes('economictimes') || p.includes('economic times')) return { name: 'Economic Times', class: 'source-et' };
+763-  if (u.includes('reuters')) return { name: 'Reuters', class: 'source-reuters' };
+764-  if (u.includes('business-standard') || p.includes('business standard')) return { name: 'Business Standard', class: 'source-bs' };
+765-  if (u.includes('cnbctv18') || p.includes('cnbc')) return { name: 'CNBC-TV18', class: 'source-cnbc' };
+766-  
+767-  return { name: publisher || 'Financial News', class: 'source-default' };
+768-}
+769-
+770-export async function fetchNews(ticker, companyName) {
+771-  let allNews = [];
+772-  
+773-  // 1. Yahoo Finance News
+774-  try {
+775-    const yfUrl = `https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(ticker + '.NS')}&quotesCount=0&newsCount=10`;
+776-    const yfRes = await axiosInstance.get(yfUrl);
+777-    if (yfRes.data && yfRes.data.news) {
+778-      yfRes.data.news.forEach(item => {
+779-        allNews.push({
+780-          title: item.title,
+781-          source: getSource(item.link, item.title, item.publisher),
+782-          publishedAt: new Date(item.providerPublishTime * 1000),
+783-          summary: 'Market news update from Yahoo Finance regarding ' + companyName + '.',
+784-          url: item.link,
+785-          sentiment: getSentiment(item.title)
+786-        });
+787-      });
+788-    }
+789-  } catch (e) {
+790-    console.error("Yahoo News Error:", e.message);
+791-  }
+792-
+793-  // 2. Google News RSS (Financial Filter)
+794-  try {
+795-    const gq = encodeURIComponent(`"${companyName}" stock OR finance OR quarterly results OR share price`);
+796-    const gUrl = `https://news.google.com/rss/search?q=${gq}&hl=en-IN&gl=IN&ceid=IN:en`;
+797-    const feed = await rssParser.parseURL(gUrl);
+798-    feed.items.forEach(item => {
+799-      // Basic strict filtering to avoid fluff
+800-      const t = item.title.toLowerCase();
+801-      const valid = ['share', 'stock', 'price', 'q1', 'q2', 'q3', 'q4', 'result', 'profit', 'loss', 'buy', 'sell', 'target', 'dividend', 'nse', 'bse', 'market', 'invest', 'deal', 'stake'];
+802-      if (valid.some(v => t.includes(v)) || t.includes(companyName.toLowerCase().split(' ')[0])) {
+803-        allNews.push({
+804-          title: item.title.split(' - ')[0], // Google news adds publisher at the end
+805-          source: getSource(item.link, item.title, item.title.split(' - ').pop()),
+806-          publishedAt: new Date(item.pubDate),
+807-          summary: item.contentSnippet ? item.contentSnippet.substring(0, 100) + '...' : 'Market update from Google News aggregator.',
+808-          url: item.link,
+809-          sentiment: getSentiment(item.title)
+810-        });
+811-      }
+812-    });
+813-  } catch (e) {
+814-    console.error("Google News RSS Error:", e.message);
+815-  }
+816-
+817-  // Sort by date desc
+818-  allNews.sort((a, b) => b.publishedAt - a.publishedAt);
+819-  
+820-  // Deduplicate by title similarity (rough)
+821-  const deduped = [];
+822-  const seenTitles = new Set();
+823-  
+824-  allNews.forEach(item => {
+825-    const canonicalTitle = item.title.toLowerCase().replace(/[^a-z0-9]/g, '');
+826-    if (!seenTitles.has(canonicalTitle)) {
+827-      seenTitles.add(canonicalTitle);
+828-      deduped.push(item);
+829-    }
+830-  });
+831-
+832-  return deduped.slice(0, 10);
+833-}

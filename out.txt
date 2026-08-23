@@ -1,0 +1,671 @@
+541:  renderAllCharts();
+542-
+543-  // Compute and render insights
+544-  generateInsights();
+545-
+546-  // Render advanced analytics
+547-  renderAdvancedAnalytics();
+548-
+549-  // Render cross-source data
+550-  renderCrossSourceData();
+551-
+552-  // Render news feed
+553-  renderNewsFeed();
+554-}
+555-
+556-// Generate Ratio Cards
+557-function renderRatioCards() {
+558-  const container = document.getElementById('ratios-cards');
+559-  container.innerHTML = '';
+560-
+561-  const eff = (companyData.analytics && companyData.analytics.efficiency_ratios) || {};
+562-  const extraRatios = {};
+563-  if (eff.debtor_days > 0) extraRatios["Debtor Days"] = `${eff.debtor_days} Days`;
+564-  if (eff.inventory_days > 0) extraRatios["Inventory Days"] = `${eff.inventory_days} Days`;
+565-  if (eff.days_payable > 0) extraRatios["Days Payable"] = `${eff.days_payable} Days`;
+566-  if (eff.working_capital_days > 0) extraRatios["Cash Cycle"] = `${eff.working_capital_days} Days`;
+567-
+568-  const allRatios = { ...companyData.ratios, ...extraRatios };
+569-  
+570-  let index = 0;
+571-  for (const [key, value] of Object.entries(allRatios)) {
+572-    const card = document.createElement('div');
+573-    card.className = `ratio-card glass-panel style-${index % 4}`;
+574-    
+575-    const iconClass = ratioIcons[key] || "fa-solid fa-chart-bar";
+576-    const tooltipText = ratioTooltips[key] || "Financial metric";
+577-    
+578-    card.innerHTML = `
+579-      <div class="ratio-title" style="display: flex; align-items: center; justify-content: space-between;">
+580-        <div style="display: flex; align-items: center;">
+581-          <i class="${iconClass}" style="margin-right: 0.5rem; opacity: 0.8;"></i>
+582-          <span>${key}</span>
+583-        </div>
+584-        <i class="fa-regular fa-circle-question tooltip-icon" data-metric="${key}" style="cursor: pointer; opacity: 0.8; font-size: 0.9em;"></i>
+585-      </div>
+586-      <div class="ratio-val">${value}</div>
+587-    `;
+588-    container.appendChild(card);
+589-    index++;
+590-  }
+591-}
+592-
+593-// Helper to clean numeric values from Screener formatted values (e.g. 1,23,456 or 15% -> 123456 or 15)
+594-function cleanNum(val) {
+595-  if (!val) return 0;
+596-  if (typeof val === 'number') return val;
+597-  const cleaned = String(val).replace(/,/g, '').replace(/%/g, '').replace(/₹/g, '').replace(/Rs\./gi, '').trim();
+598-  const parsed = parseFloat(cleaned);
+599-  return isNaN(parsed) ? 0 : parsed;
+600-}
+601-
+602-// Helper to extract table row data by row header prefix match
+603-function getRowByName(table, name) {
+604-  if (!table) return null;
+605-  return table.find(row => row && row[0] && row[0].toLowerCase().includes(name.toLowerCase())) || null;
+606-}
+607-
+608-// Switch dashboard tabs
+609-function switchTab(tabId) {
+610-  // Deactivate all tabs
+611-  document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+612-  document.querySelectorAll('.tab-content').forEach(content => {
+613-    content.classList.remove('active');
+614-    content.classList.add('hidden'); // explicitly hide
+615-  });
+616-  
+617-  // Activate selected
+618-  const activeBtn = Array.from(document.querySelectorAll('.tab-btn')).find(btn => btn.getAttribute('onclick').includes(tabId));
+619-  if (activeBtn) activeBtn.classList.add('active');
+620-  
+621-  console.log("Switching to tab:", tabId);
+622-  const selectedTab = document.getElementById(tabId);
+623-  if (selectedTab) {
+624-    selectedTab.classList.add('active');
+625-    selectedTab.classList.remove('hidden'); // explicitly reveal
+626-  }
+627-  
+628-  // Resize charts to fit their containers if visible
+629-  if (tabId === 'tab-charts') {
+630-    Object.values(charts).forEach(chart => {
+631-      if (chart) chart.resize();
+632-    });
+633-  }
+634-}
+635-
+636-// Switch tables toggles
+637-function switchTable(tableName) {
+638-  currentTable = tableName;
+639-  // Update buttons
+640-  document.querySelectorAll('.table-toggle-btn').forEach(btn => {
+641-    btn.classList.remove('active');
+642-    if (btn.getAttribute('onclick').includes(tableName)) {
+643-      btn.classList.add('active');
+644-    }
+645-  });
+646-  renderTable(tableName);
+647-}
+648-
+649-// Render dynamic statement tables
+650-function renderTable(tableName) {
+651-  const table = companyData.tables[tableName];
+652-  const tableElement = document.getElementById('statement-table');
+653-  const thead = tableElement.querySelector('thead');
+654-  const tbody = tableElement.querySelector('tbody');
+655-  
+656-  thead.innerHTML = '';
+657-  tbody.innerHTML = '';
+658-  
+659-  if (!table || table.length === 0) {
+660-    tbody.innerHTML = `<tr><td colspan="100%" style="text-align: center; padding: 2rem;">No data available for this statement.</td></tr>`;
+661-    return;
+662-  }
+663-  
+664-  // Extract headers (first row)
+665-  const headers = table[0];
+666-  const headerRow = document.createElement('tr');
+667-  // Reverse chronological order for columns (index 1 to end)
+668-  const invertedHeaders = headers.length > 1 ? [headers[0], ...headers.slice(1).reverse()] : headers;
+669-  
+670-  invertedHeaders.forEach((h, i) => {
+671-    const th = document.createElement('th');
+672-    th.textContent = h;
+673-    headerRow.appendChild(th);
+674-  });
+675-  thead.appendChild(headerRow);
+676-  
+677-  // Extract data rows
+678-  for (let r = 1; r < table.length; r++) {
+679-    const row = table[r];
+680-    if (!row || row.length === 0) continue;
+681-    
+682-    // Skip totally empty rows
+683-    if (row.every(cell => !cell || cell.trim() === '')) continue;
+684-    
+685-    const tr = document.createElement('tr');
+686-    // Align values with inverted headers
+687-    const invertedRow = row.length > 1 ? [row[0], ...row.slice(1).reverse()] : row;
+688-    
+689-    invertedRow.forEach((cell, c) => {
+690-      const td = document.createElement('td');
+691-      td.textContent = cell;
+692-      
+693-      // Layout styles for headers vs values
+694-      if (c === 0) {
+695-        td.style.fontWeight = '500';
+696-      } else {
+697-        // Numbers styling
+698-        const numVal = cleanNum(cell);
+699-        if (numVal < 0) {
+700-          td.style.color = '#f43f5e'; // Red glow for negative values
+701-        }
+702-        td.style.textAlign = 'right';
+703-      }
+704-      tr.appendChild(td);
+705-    });
+706-    tbody.appendChild(tr);
+707-  }
+708-}
+709-
+710-// Render visual charts using Chart.js
+711:function renderAllCharts() {
+712-  // Destroy old charts to prevent duplicate canvases
+713-  Object.keys(charts).forEach(key => {
+714-    if (charts[key]) {
+715-      charts[key].destroy();
+716-      charts[key] = null;
+717-    }
+718-  });
+719-
+720-  const pnlTable = companyData.tables['profit-loss'];
+721-  const cashflowTable = companyData.tables['cash-flow'];
+722-  const shareholdingTable = companyData.tables['shareholding'];
+723-  
+724-  if (!pnlTable || pnlTable.length === 0) return;
+725-  
+726-  // Extract P&L Years (header cells 1 to N-1, avoiding first empty cell and usually TTM at the end)
+727-  const headers = pnlTable[0];
+728-  let yearIndices = [];
+729-  let years = [];
+730-  
+731-  for (let i = 1; i < headers.length; i++) {
+732-    const h = headers[i];
+733-    if (h && h.trim() && h.toLowerCase() !== 'ttm') {
+734-      yearIndices.push(i);
+735-      years.push(h);
+736-    }
+737-  }
+738-  
+739-  // 1. Revenue & Profit Chart
+740-  const salesRow = getRowByName(pnlTable, 'Sales');
+741-  const netProfitRow = getRowByName(pnlTable, 'Net Profit');
+742-  
+743-  if (salesRow || netProfitRow) {
+744-    const salesData = salesRow ? yearIndices.map(idx => cleanNum(salesRow[idx])) : yearIndices.map(() => 0);
+745-    const profitData = netProfitRow ? yearIndices.map(idx => cleanNum(netProfitRow[idx])) : yearIndices.map(() => 0);
+746-    
+747-    const ctx = document.getElementById('revenueProfitChart').getContext('2d');
+748-    charts.revenueProfit = new Chart(ctx, {
+749-      type: 'bar',
+750-      data: {
+751-        labels: years,
+752-        datasets: [
+753-          {
+754-            label: 'Net Profit',
+755-            data: profitData,
+756-            type: 'line',
+757-            borderColor: '#8b5cf6',
+758-            borderWidth: 3,
+759-            fill: false,
+760-            tension: 0.3,
+761-            yAxisID: 'y'
+762-          },
+763-          {
+764-            label: 'Revenue',
+765-            data: salesData,
+766-            backgroundColor: 'rgba(6, 182, 212, 0.45)',
+767-            borderColor: '#06b6d4',
+768-            borderWidth: 1.5,
+769-            borderRadius: 6,
+770-            yAxisID: 'y'
+771-          }
+772-        ]
+773-      },
+774-      options: {
+775-        responsive: true,
+776-        maintainAspectRatio: false,
+777-        plugins: {
+778-          legend: { display: false }
+779-        },
+780-        scales: {
+781-          x: {
+782-            grid: { color: 'rgba(255,255,255,0.03)' },
+783-            ticks: { color: '#94a3b8' }
+784-          },
+785-          y: {
+786-            type: 'linear',
+787-            position: 'left',
+788-            beginAtZero: true,
+789-            grid: { color: 'rgba(255,255,255,0.03)' },
+790-            ticks: { color: '#94a3b8' },
+791-            title: { display: true, text: '₹ Crores', color: '#94a3b8' } }
+792-          
+793-        }
+794-      }
+795-    });
+796-  }
+797-
+798-  // 2. Margin Chart (OPM % vs NPM %)
+799-  const opmRow = getRowByName(pnlTable, 'OPM %');
+800-  if (salesRow || netProfitRow) {
+801-    const opmValues = opmRow ? yearIndices.map(idx => cleanNum(opmRow[idx])) : yearIndices.map(() => 0);
+802-    const npmValues = yearIndices.map(idx => {
+803-      if (!salesRow || !netProfitRow) return 0;
+804-      const sales = cleanNum(salesRow[idx]);
+805-      const profit = cleanNum(netProfitRow[idx]);
+806-      return sales > 0 ? parseFloat(((profit / sales) * 100).toFixed(2)) : 0;
+807-    });
+808-    
+809-    const ctx = document.getElementById('marginChart').getContext('2d');
+810-    charts.margin = new Chart(ctx, {
+811-      type: 'line',
+812-      data: {
+813-        labels: years,
+814-        datasets: [
+815-          {
+816-            label: 'OPM %',
+817-            data: opmValues,
+818-            borderColor: '#10b981',
+819-            borderWidth: 3,
+820-            fill: false,
+821-            tension: 0.3
+822-          },
+823-          {
+824-            label: 'NPM %',
+825-            data: npmValues,
+826-            borderColor: '#f59e0b',
+827-            borderWidth: 3,
+828-            fill: false,
+829-            tension: 0.3
+830-          }
+831-        ]
+832-      },
+833-      options: {
+834-        responsive: true,
+835-        maintainAspectRatio: false,
+836-        plugins: {
+837-          legend: { display: false }
+838-        },
+839-        scales: {
+840-          x: {
+841-            grid: { color: 'rgba(255,255,255,0.03)' },
+842-            ticks: { color: '#94a3b8' }
+843-          },
+844-          y: {
+845-            grid: { color: 'rgba(255,255,255,0.03)' },
+846-            ticks: { color: '#94a3b8', callback: value => `${value}%` },
+847-            title: { display: true, text: 'Margin percentage', color: '#94a3b8' }
+848-          }
+849-        }
+850-      }
+851-    });
+852-  }
+853-
+854-  // 3. Cash Flow Chart (CFO vs Free Cash Flow)
+855-  let cfYearIndices = [];
+856-  let cfYears = [];
+857-  if (cashflowTable && cashflowTable.length > 0) {
+858-    const cfHeaders = cashflowTable[0];
+859-    for (let i = 1; i < cfHeaders.length; i++) {
+860-      const h = cfHeaders[i];
+861-      if (h && h.trim() && h.toLowerCase() !== 'ttm') {
+862-        cfYearIndices.push(i);
+863-        cfYears.push(h);
+864-      }
+865-    }
+866-  }
+867-  
+868-  const cfoRow = getRowByName(cashflowTable, 'Cash from Operating Activity');
+869-  const fcfRow = getRowByName(cashflowTable, 'Free Cash Flow');
+870-  
+871-  if (cfoRow || fcfRow) {
+872-    const cfoData = cfoRow ? cfYearIndices.map(idx => cleanNum(cfoRow[idx])) : cfYearIndices.map(() => 0);
+873-    const fcfData = fcfRow ? cfYearIndices.map(idx => cleanNum(fcfRow[idx])) : cfYearIndices.map(() => 0);
+874-    
+875-    const ctx = document.getElementById('cashflowChart').getContext('2d');
+876-    charts.cashflow = new Chart(ctx, {
+877-      type: 'bar',
+878-      data: {
+879-        labels: cfYears,
+880-        datasets: [
+881-          {
+882-            label: 'Free Cash Flow',
+883-            data: fcfData,
+884-            type: 'line',
+885-            borderColor: '#f43f5e',
+886-            borderWidth: 2.5,
+887-            fill: false,
+888-            tension: 0.3
+889-          },
+890-          {
+891-            label: 'CFO',
+892-            data: cfoData,
+893-            backgroundColor: 'rgba(59, 130, 246, 0.4)',
+894-            borderColor: '#3b82f6',
+895-            borderWidth: 1.5,
+896-            borderRadius: 4
+897-          }
+898-        ]
+899-      },
+900-      options: {
+901-        responsive: true,
+902-        maintainAspectRatio: false,
+903-        plugins: {
+904-          legend: { display: false }
+905-        },
+906-        scales: {
+907-          x: {
+908-            grid: { color: 'rgba(255,255,255,0.03)' },
+909-            ticks: { color: '#94a3b8' }
+910-          },
+911-          y: {
+912-            grid: { color: 'rgba(255,255,255,0.03)' },
+913-            ticks: { color: '#94a3b8' },
+914-            title: { display: true, text: 'Value (₹ Crores)', color: '#94a3b8' }
+915-          }
+916-        }
+917-      }
+918-    });
+919-  }
+920-
+921-  // 4. Working Capital Days Chart (Debtor Days vs Inventory Days vs Days Payable)
+922-  const ratioTable = companyData.tables['ratios'];
+923-  if (ratioTable && ratioTable.length > 0) {
+924-    const rHeaders = ratioTable[0];
+925-    let rYearIndices = [];
+926-    let rYears = [];
+927-    for (let i = 1; i < rHeaders.length; i++) {
+928-      if (rHeaders[i] && rHeaders[i].trim() && rHeaders[i].toLowerCase() !== 'ttm') {
+929-        rYearIndices.push(i);
+930-        rYears.push(rHeaders[i]);
+931-      }
+932-    }
+933-    const debtorRow = getRowByName(ratioTable, 'Debtor Days');
+934-    const inventoryRow = getRowByName(ratioTable, 'Inventory Days');
+935-    const payableRow = getRowByName(ratioTable, 'Days Payable');
+936-
+937-    if (debtorRow || inventoryRow || payableRow) {
+938-      const debtorData = debtorRow ? rYearIndices.map(idx => cleanNum(debtorRow[idx])) : rYearIndices.map(() => 0);
+939-      const inventoryData = inventoryRow ? rYearIndices.map(idx => cleanNum(inventoryRow[idx])) : rYearIndices.map(() => 0);
+940-      const payableData = payableRow ? rYearIndices.map(idx => cleanNum(payableRow[idx])) : rYearIndices.map(() => 0);
+941-
+942-      const ctxWC = document.getElementById('workingCapitalChart');
+943-      if (ctxWC) {
+944-        charts.workingCapital = new Chart(ctxWC.getContext('2d'), {
+945-          type: 'line',
+946-          data: {
+947-            labels: rYears,
+948-            datasets: [
+949-              { label: 'Debtor Days', data: debtorData, borderColor: '#06b6d4', borderWidth: 2.5, tension: 0.3, fill: false },
+950-              { label: 'Inventory Days', data: inventoryData, borderColor: '#f59e0b', borderWidth: 2.5, tension: 0.3, fill: false },
+951-              { label: 'Days Payable', data: payableData, borderColor: '#8b5cf6', borderWidth: 2.5, tension: 0.3, fill: false }
+952-            ]
+953-          },
+954-          options: {
+955-            responsive: true,
+956-            maintainAspectRatio: false,
+957-            plugins: { legend: { display: false } },
+958-            scales: {
+959-              x: { grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { color: '#94a3b8' } },
+960-              y: { grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { color: '#94a3b8' }, title: { display: true, text: 'Days', color: '#94a3b8' } }
+961-            }
+962-          }
+963-        });
+964-      }
+965-    }
+966-  }
+967-
+968-  // 5. Capital Structure & Borrowings Chart (Equity Capital + Reserves vs Borrowings)
+969-  const bsTable = companyData.tables['balance-sheet'];
+970-  if (bsTable && bsTable.length > 0) {
+971-    const bsHeaders = bsTable[0];
+972-    let bsYearIndices = [];
+973-    let bsYears = [];
+974-    for (let i = 1; i < bsHeaders.length; i++) {
+975-      if (bsHeaders[i] && bsHeaders[i].trim() && bsHeaders[i].toLowerCase() !== 'ttm') {
+976-        bsYearIndices.push(i);
+977-        bsYears.push(bsHeaders[i]);
+978-      }
+979-    }
+980-    const eqCapRow = getRowByName(bsTable, 'Equity Capital');
+981-    const resRow = getRowByName(bsTable, 'Reserves');
+982-    const borRow = getRowByName(bsTable, 'Borrowing');
+983-
+984-    if (borRow || eqCapRow || resRow) {
+985-      const equityTotalData = bsYearIndices.map(idx => cleanNum(eqCapRow ? eqCapRow[idx] : '0') + cleanNum(resRow ? resRow[idx] : '0'));
+986-      const debtData = borRow ? bsYearIndices.map(idx => cleanNum(borRow[idx])) : bsYearIndices.map(() => 0);
+987-
+988-      const ctxCap = document.getElementById('capitalStructureChart');
+989-      if (ctxCap) {
+990-        charts.capitalStructure = new Chart(ctxCap.getContext('2d'), {
+991-          type: 'bar',
+992-          data: {
+993-            labels: bsYears,
+994-            datasets: [
+995-              { label: 'Net Worth (Equity+Res)', data: equityTotalData, backgroundColor: 'rgba(16, 185, 129, 0.45)', borderColor: '#10b981', borderWidth: 1.5, borderRadius: 4 },
+996-              { label: 'Total Borrowings', data: debtData, backgroundColor: 'rgba(244, 63, 94, 0.45)', borderColor: '#f43f5e', borderWidth: 1.5, borderRadius: 4 }
+997-            ]
+998-          },
+999-          options: {
+1000-            responsive: true,
+1001-            maintainAspectRatio: false,
+1002-            plugins: { legend: { display: false } },
+1003-            scales: {
+1004-              x: { grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { color: '#94a3b8' } },
+1005-              y: { grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { color: '#94a3b8' }, title: { display: true, text: '₹ Crores', color: '#94a3b8' } }
+1006-            }
+1007-          }
+1008-        });
+1009-      }
+1010-    }
+1011-  }
+1012-
+1013-  // 6. Return Metrics Chart (ROCE % vs ROE %)
+1014-  let rYears = [];
+1015-  let roceData = [];
+1016-  let roeData = [];
+1017-  
+1018-  if (ratioTable && ratioTable.length > 0 && (getRowByName(ratioTable, 'ROCE %') || getRowByName(ratioTable, 'ROE %') || getRowByName(ratioTable, 'Return on Equity'))) {
+1019-    const rHeaders = ratioTable[0];
+1020-    let rYearIndices = [];
+1021-    for (let i = 1; i < rHeaders.length; i++) {
+1022-      if (rHeaders[i] && rHeaders[i].trim() && rHeaders[i].toLowerCase() !== 'ttm') {
+1023-        rYearIndices.push(i);
+1024-        rYears.push(rHeaders[i]);
+1025-      }
+1026-    }
+1027-    const roceRow = getRowByName(ratioTable, 'ROCE %');
+1028-    const roeRow = getRowByName(ratioTable, 'ROE %') || getRowByName(ratioTable, 'Return on Equity');
+1029-    roceData = roceRow ? rYearIndices.map(idx => cleanNum(roceRow[idx])) : rYearIndices.map(() => 0);
+1030-    roeData = roeRow ? rYearIndices.map(idx => cleanNum(roeRow[idx])) : rYearIndices.map(() => 0);
+1031-  } else if (pnlTable && pnlTable.length > 0 && bsTable && bsTable.length > 0) {
+1032-    const pHeaders = pnlTable[0];
+1033-    const bsHeaders = bsTable[0];
+1034-    for (let i = 1; i < pHeaders.length; i++) {
+1035-      if (pHeaders[i] && pHeaders[i].trim() && pHeaders[i].toLowerCase() !== 'ttm') {
+1036-        rYears.push(pHeaders[i]);
+1037-        
+1038-        let bsIdx = bsHeaders.indexOf(pHeaders[i]);
+1039-        if (bsIdx === -1) bsIdx = i;
+1040-        
+1041-        const opRow = getRowByName(pnlTable, 'Operating Profit') || getRowByName(pnlTable, 'Financing Profit');
+1042-        const otherIncRow = getRowByName(pnlTable, 'Other Income');
+1043-        const npRow = getRowByName(pnlTable, 'Net Profit');
+1044-        
+1045-        const eqCapRow = getRowByName(bsTable, 'Equity Capital');
+1046-        const resRow = getRowByName(bsTable, 'Reserves');
+1047-        const borRow = getRowByName(bsTable, 'Borrowing');
+1048-        
+1049-        const ebit = (opRow ? cleanNum(opRow[i]) : 0) + (otherIncRow ? cleanNum(otherIncRow[i]) : 0);
+1050-        const np = npRow ? cleanNum(npRow[i]) : 0;
+1051-        const equity = (eqCapRow ? cleanNum(eqCapRow[bsIdx]) : 0) + (resRow ? cleanNum(resRow[bsIdx]) : 0);
+1052-        const borrowings = borRow ? cleanNum(borRow[bsIdx]) : 0;
+1053-        const capitalEmployed = equity + borrowings;
+1054-        
+1055-        let roce = 0;
+1056-        let roe = 0;
+1057-        if (capitalEmployed !== 0) roce = (ebit / capitalEmployed) * 100;
+1058-        if (equity !== 0) roe = (np / equity) * 100;
+1059-        
+1060-        roceData.push(parseFloat(roce.toFixed(2)));
+1061-        roeData.push(parseFloat(roe.toFixed(2)));
+1062-      }
+1063-    }
+1064-  }
+1065-
+1066-  if (rYears.length > 0) {
+1067-    const ctxRet = document.getElementById('returnMetricsChart');
+1068-    if (ctxRet) {
+1069-      charts.returnMetrics = new Chart(ctxRet.getContext('2d'), {
+1070-        type: 'line',
+1071-        data: {
+1072-          labels: rYears,
+1073-          datasets: [
+1074-            { label: 'ROCE %', data: roceData, borderColor: '#06b6d4', borderWidth: 3, tension: 0.3, fill: false },
+1075-            { label: 'ROE %', data: roeData, borderColor: '#f59e0b', borderWidth: 3, tension: 0.3, fill: false }
+1076-          ]
+1077-        },
+1078-        options: {
+1079-          responsive: true,
+1080-          maintainAspectRatio: false,
+1081-          plugins: { legend: { display: false } },
+1082-          scales: {
+1083-            x: { grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { color: '#94a3b8' } },
+1084-            y: { grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { color: '#94a3b8', callback: v => `${v}%` } }
+1085-          }
+1086-        }
+1087-      });
+1088-    }
+1089-  }
+1090-
+1091-  // 7. Quarterly Momentum Chart (Quarterly Sales vs Quarterly Operating Profit)
+1092-  const qTable = companyData.tables['quarters'];
+1093-  if (qTable && qTable.length > 0) {
+1094-    const qHeaders = qTable[0];
+1095-    let qIndices = [];
+1096-    let qLabels = [];
+1097-    for (let i = 1; i < qHeaders.length; i++) {
+1098-      if (qHeaders[i] && qHeaders[i].trim() && qHeaders[i].toLowerCase() !== 'ttm') {
+1099-        qIndices.push(i);
+1100-        qLabels.push(qHeaders[i]);
+1101-      }
+1102-    }
+1103-    const qSalesRow = getRowByName(qTable, 'Sales');
+1104-    const qOpRow = getRowByName(qTable, 'Operating Profit');
+1105-
+1106-    if (qSalesRow || qOpRow) {
+1107-      const qSalesData = qSalesRow ? qIndices.map(idx => cleanNum(qSalesRow[idx])) : qIndices.map(() => 0);
+1108-      const qOpData = qOpRow ? qIndices.map(idx => cleanNum(qOpRow[idx])) : qIndices.map(() => 0);
+1109-
+1110-      const ctxQ = document.getElementById('quarterlyChart');
+1111-      if (ctxQ) {
+1112-        charts.quarterly = new Chart(ctxQ.getContext('2d'), {
+1113-          type: 'bar',
+1114-          data: {
+1115-            labels: qLabels,
+1116-            datasets: [
+1117-              { label: 'Qtr Sales', data: qSalesData, backgroundColor: 'rgba(59, 130, 246, 0.45)', borderColor: '#3b82f6', borderWidth: 1.5, borderRadius: 4 },
+1118-              { label: 'Qtr OpProfit', data: qOpData, type: 'line', borderColor: '#10b981', borderWidth: 3, tension: 0.3, fill: false }
+1119-            ]
+1120-          },
+1121-          options: {
+1122-            responsive: true,
+1123-            maintainAspectRatio: false,
+1124-            plugins: { legend: { display: false } },
+1125-            scales: {
+1126-              x: { grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { color: '#94a3b8' } },
+1127-              y: { grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { color: '#94a3b8' }, title: { display: true, text: '₹ Crores', color: '#94a3b8' } }
+1128-            }
+1129-          }
+1130-        });
+1131-      }
+1132-    }
+1133-  }
+1134-
+1135-  // 8. Shareholding Donut Chart
+1136-  renderShareholdingDonut();
+1137-}
+1138-
+1139-// Render dynamic shareholding donut chart
+1140-function renderShareholdingDonut() {
+1141-  const shTable = companyData.tables['shareholding'];
+1142-  const select = document.getElementById('shareholding-date-select');
+1143-  select.innerHTML = '';
+1144-  
+1145-  if (!shTable || shTable.length === 0) {
+1146-    document.getElementById('shareholding-legend').innerHTML = '<div style="color: var(--text-muted);">No shareholding data available</div>';
+1147-    return;
+1148-  }
+1149-  
+1150-  // Extract dates (columns 1 to N)
+1151-  const headers = shTable[0];
+1152-  const dates = [];
+1153-  for (let i = 1; i < headers.length; i++) {
+1154-    if (headers[i] && headers[i].trim() && headers[i].toLowerCase() !== 'ttm') {
+1155-      let safeLabel = headers[i].replace(/[{()}]/g, '').trim();
+1156-      dates.push({ label: safeLabel, index: i });
+1157-    }
+1158-  }
+1159-  
+1160-  if (dates.length === 0) return;
+1161-  
+1162-  // Pop date select
+1163-  dates.forEach(d => {
+1164-    const opt = document.createElement('option');
+1165-    opt.value = d.index;
+1166-    opt.textContent = d.label;
+1167-    select.appendChild(opt);
+1168-  });
+1169-  
+1170-  // Pick the latest date (the last column)
+1171-  select.value = dates[dates.length - 1].index;
+1172-  
+1173-  // Watch select change
+1174-  select.onchange = () => { updateDonut(parseInt(select.value)); };
+1175-  
+1176-  
+1177-// Tooltip Modal Logic
+1178-document.addEventListener('click', (e) => {
+1179-  if (e.target.closest('.tooltip-icon')) {
+1180-    const icon = e.target.closest('.tooltip-icon');
+1181-    const metric = icon.getAttribute('data-metric');
+1182-    if (metric && deepTooltips[metric]) {
+1183-      const data = deepTooltips[metric];
+1184-      document.getElementById('financial-modal-title').textContent = metric;
+1185-      document.getElementById('financial-modal-body').innerHTML = `
+1186-        <div class="modal-section">
+1187-          <h4><i class="fa-solid fa-book-open-reader"></i> Meaning</h4>
+1188-          <p>${data.meaning}</p>
+1189-        </div>
+1190-        <div class="modal-section">
+1191-          <h4><i class="fa-solid fa-chart-line"></i> Market Relevance</h4>
+1192-          <p>${data.relevance}</p>
+1193-        </div>
+1194-        <div class="modal-section">
+1195-          <h4><i class="fa-solid fa-calculator"></i> Formula</h4>
+1196-          <div class="modal-formula">${data.formula}</div>
+1197-        </div>
+1198-        <div class="modal-section">
+1199-          <h4><i class="fa-solid fa-database"></i> Data Derivation</h4>
+1200-          <p>${data.derivation}</p>
+1201-        </div>
+1202-      `;
+1203-      document.getElementById('financial-modal').classList.remove('hidden');
+1204-    }
+1205-  }
+1206-});
+1207-
+1208-document.getElementById('financial-modal-close')?.addEventListener('click', () => {
+1209-  document.getElementById('financial-modal').classList.add('hidden');
+1210-});
+1211-

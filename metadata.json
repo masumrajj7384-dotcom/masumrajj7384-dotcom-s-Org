@@ -1,0 +1,6 @@
+{
+  "name": "Screener Insight Pro",
+  "description": "Multi-source financial intelligence dashboard",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
