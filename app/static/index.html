@@ -8,9 +8,10 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=1787820536">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  </head>
+    <script src="calc_logic.js?v=5" defer></script>
+</head>
 <body>
   <div class="fullscreen-watermark"></div>
   <div class="bg-glow bg-glow-1"></div>
@@ -30,7 +31,8 @@
         </div>
       </div>
       <div class="search-container">
-        <form id="search-form" class="search-form">
+        <div id="search-form-wrapper" class="search-form-wrapper">
+          <form id="search-form" class="search-form">
           <div class="input-wrapper" style="position: relative;">
             <i class="fa-solid fa-magnifying-glass search-icon"></i>
             <input type="text" id="search-input" placeholder="Company name or ticker (e.g., Reliance, TCS, INFY)..." autocomplete="off" required>
@@ -38,6 +40,7 @@
           </div>
           <button type="submit" class="search-btn"><span>Analyze</span><i class="fa-solid fa-wand-magic-sparkles"></i></button>
         </form>
+        </div>
         <!-- RECENT SEARCHES -->
         <div id="recent-searches-container" class="recent-searches-container hidden">
           <span class="recent-label">Recent:</span>
@@ -133,11 +136,62 @@
 
     <!-- Main Dashboard -->
     <main id="dashboard-content" class="dashboard-grid hidden">
+      
+      <!-- Top-Level Google Finance AI Section -->
+      <section id="top-gfair-card" class="col-span-12" style="
+          perspective: 1000px;
+          margin-bottom: 0.5rem;
+      ">
+        <div class="gfair-3d-container" style="
+            background: linear-gradient(135deg, rgba(13, 14, 21, 0.7) 0%, rgba(20, 24, 39, 0.8) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            padding: 1.25rem 2rem;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            transform-style: preserve-3d;
+            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.4s ease;
+        " onmouseover="this.style.transform='translateZ(35px) rotateX(5deg) rotateY(-3deg)'; this.style.boxShadow='0 45px 65px -10px rgba(20, 184, 166, 0.4), inset 0 2px 0 rgba(255, 255, 255, 0.3)';" onmouseout="this.style.transform='translateZ(0) rotateX(0) rotateY(0)'; this.style.boxShadow='0 20px 40px -10px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1)';">
+            <!-- Emulsive Gradient Meshes -->
+            <div style="position: absolute; top: -50%; left: -20%; width: 60%; height: 200%; background: radial-gradient(circle, rgba(20, 184, 166, 0.15) 0%, transparent 60%); transform: rotate(30deg); pointer-events: none;"></div>
+            <div style="position: absolute; bottom: -50%; right: -20%; width: 60%; height: 200%; background: radial-gradient(circle, rgba(249, 115, 22, 0.12) 0%, transparent 60%); transform: rotate(-30deg); pointer-events: none;"></div>
+            
+            <div style="position: relative; z-index: 2; display: flex; flex-direction: row; justify-content: space-between; align-items: center; text-align: left; gap: 1.5rem; transform: translateZ(60px); flex-wrap: wrap;">
+                <div style="display: flex; flex-direction: row; align-items: center; gap: 1.5rem; flex-wrap: wrap;">
+                    <h2 style="margin: 0; font-size: 1.75rem; font-weight: 800; background: linear-gradient(to right, #4ade80, #38bdf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-shadow: 0 2px 10px rgba(74, 222, 128, 0.2);">Google Finance AI</h2>
+                    <div style="display: inline-flex; align-items: center; gap: 0.75rem; background: rgba(255,255,255,0.05); padding: 0.5rem 1rem; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1); font-size: 0.9rem;">
+                        <span id="gfair-company-name" style="color: var(--text-primary); font-weight: 600;">Loading...</span>
+                        <span style="color: var(--text-muted);">|</span>
+                        <span id="gfair-ticker" style="color: var(--accent-cyan); font-weight: 500; font-family: monospace;">--</span>
+                    </div>
+                </div>
+                
+                <a id="gfair-launch-btn" href="#" target="_blank" rel="noopener noreferrer" style="
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 0.75rem;
+                    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+                    color: #fff;
+                    font-weight: 700;
+                    font-size: 1rem;
+                    padding: 0.75rem 1.5rem;
+                    border-radius: 12px;
+                    text-decoration: none;
+                    box-shadow: 0 10px 25px -5px rgba(16, 185, 129, 0.5), inset 0 2px 0 rgba(255,255,255,0.2);
+                    transition: all 0.3s ease;
+                    transform: translateZ(80px);
+                " onmouseover="this.style.boxShadow='0 25px 45px -5px rgba(16, 185, 129, 0.8), inset 0 2px 0 rgba(255,255,255,0.4)'; this.style.transform='translateZ(100px) scale(1.05)';" onmouseout="this.style.boxShadow='0 10px 25px -5px rgba(16, 185, 129, 0.5), inset 0 2px 0 rgba(255,255,255,0.2)'; this.style.transform='translateZ(80px) scale(1)';">
+                    <i class="fa-solid fa-rocket"></i> Launch Google Finance AI Research Suite
+                </a>
+            </div>
+        </div>
+      </section>
 
       <!-- Company Banner -->
       <section class="banner-panel glass-panel col-span-12">
         <div class="banner-header">
-          <div class="title-wrapper" style="display:flex; flex-wrap:wrap; align-items:center; gap:10px; width:100%;">
+          <div class="title-wrapper" style="display:flex; flex-wrap:wrap; align-items:center; gap:6px; width:100%;">
             <h2 id="company-name">Company Name</h2>
             <span id="ticker-badge" class="badge">SYMBOL</span>
             <span id="statement-badge" class="badge secondary">Consolidated</span>
@@ -145,10 +199,10 @@
             
             <div style="display:flex; flex-direction:column; align-items: flex-end; gap: 6px; margin-left:auto;">
                <div style="display:flex; align-items:center; gap:10px;">
-                   <div id="sync-status-badge" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); padding: 5px 12px; border-radius: 12px; font-size: 0.75rem; color: #cbd5e1; display:flex; align-items:center; gap: 5px; backdrop-filter: blur(4px);">
+                   <div id="sync-status-badge" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); padding: 3px 8px; border-radius: 12px; font-size: 0.75rem; color: #cbd5e1; display:flex; align-items:center; gap: 5px; backdrop-filter: blur(4px);">
                       <span style="font-size:0.6rem">🟢</span> Synced: <strong id="sync-time" style="color:#fff; font-weight:600;">--</strong>
                    </div>
-                   <button id="force-sync-btn" class="search-btn" style="padding: 5px 12px; font-size: 0.75rem; display:flex; align-items:center; gap: 5px;" onclick="forceSyncData()">
+                   <button id="force-sync-btn" class="search-btn" style="padding: 3px 8px; font-size: 0.75rem; display:flex; align-items:center; gap: 5px;" onclick="forceSyncData()">
                       <i class="fa-solid fa-arrows-rotate"></i> Sync All Sources
                    </button>
                </div>
@@ -186,8 +240,17 @@
         <p id="company-about" class="company-about"></p>
       </section>
 
+      <!-- AI Evaluation Card -->
+      <section id="ai-eval-card" class="glass-panel col-span-4" style="display: flex; flex-direction: column; gap: 0.75rem; padding: 1rem; height: 100%;">
+         <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(168,85,247,0.2); padding-bottom: 0.5rem; flex-shrink: 0;">
+           <h3 style="color:#a855f7; margin: 0; font-size: 1.05rem; display: flex; align-items: center; gap: 0.5rem;">🧠 Google AI Evaluation</h3>
+           <a id="ai-gf-link" href="#" target="_blank" rel="noopener noreferrer" style="text-decoration: none; padding: 0.35rem 0.6rem; background: rgba(52, 211, 153, 0.15); color: #34d399; font-weight: bold; border-radius: 6px; font-size: 0.75rem; border: 1px solid rgba(52, 211, 153, 0.3); transition: all 0.2s;" onmouseover="this.style.background='rgba(52, 211, 153, 0.25)'" onmouseout="this.style.background='rgba(52, 211, 153, 0.15)'">Open Google Finance AI</a>
+         </div>
+         <div id="ai-eval-content" style="flex: 1; display: flex; flex-direction: column; font-size: 0.85rem; color: var(--text-secondary); line-height: 1.4;">Loading AI synthesis...</div>
+      </section>
+
       <!-- Key Ratios Grid -->
-      <section class="col-span-12 grid-ratios" id="ratios-cards"></section>
+      <section class="col-span-8 grid-ratios" id="ratios-cards"></section>
 
       <!-- Tab Navigation -->
       <nav class="col-span-12 tab-nav glass-panel">
@@ -265,31 +328,31 @@
       <section id="tab-analytics" class="tab-content col-span-12 grid-sub hidden">
         <!-- Valuation Models -->
         <div class="glass-panel col-span-4 analytics-card">
-          <div class="analytics-card-header"><i class="fa-solid fa-calculator"></i><h3>DCF Intrinsic Value <i class="fa-regular fa-circle-question tooltip-icon" data-metric="DCF Intrinsic Value" style="cursor: pointer; opacity: 0.8; font-size: 0.8em; margin-left: 0.3rem;"></i></h3></div>
+          <div class="analytics-card-header"><i class="fa-solid fa-calculator"></i><h3>DCF Intrinsic Value <i class="fa-regular fa-circle-question tooltip-icon" data-metric="DCF Intrinsic Value" style="cursor: pointer; opacity: 0.8; font-size: 0.8em; margin-left: 0.3rem;"></i></h3> <button class="calc-btn" data-calc="dcf" style="margin-left: auto; font-size: 0.75rem; padding: 0.2rem 0.5rem; background: var(--surface-light); border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer; color: var(--text-muted); display: flex; align-items: center; gap: 0.3rem; transition: all 0.2s;">📊 View Calculation</button></div>
           <div id="dcf-content" class="analytics-card-body">Loading...</div>
         </div>
         <div class="glass-panel col-span-4 analytics-card">
-          <div class="analytics-card-header"><i class="fa-solid fa-book-open"></i><h3>Graham Number <i class="fa-regular fa-circle-question tooltip-icon" data-metric="Graham Number" style="cursor: pointer; opacity: 0.8; font-size: 0.8em; margin-left: 0.3rem;"></i></h3></div>
+          <div class="analytics-card-header"><i class="fa-solid fa-book-open"></i><h3>Graham Number <i class="fa-regular fa-circle-question tooltip-icon" data-metric="Graham Number" style="cursor: pointer; opacity: 0.8; font-size: 0.8em; margin-left: 0.3rem;"></i></h3> <button class="calc-btn" data-calc="graham" style="margin-left: auto; font-size: 0.75rem; padding: 0.2rem 0.5rem; background: var(--surface-light); border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer; color: var(--text-muted); display: flex; align-items: center; gap: 0.3rem; transition: all 0.2s;">📊 View Calculation</button></div>
           <div id="graham-content" class="analytics-card-body">Loading...</div>
         </div>
         <div class="glass-panel col-span-4 analytics-card">
-          <div class="analytics-card-header"><i class="fa-solid fa-shield-halved"></i><h3>Margin of Safety <i class="fa-regular fa-circle-question tooltip-icon" data-metric="Margin of Safety" style="cursor: pointer; opacity: 0.8; font-size: 0.8em; margin-left: 0.3rem;"></i></h3></div>
+          <div class="analytics-card-header"><i class="fa-solid fa-shield-halved"></i><h3>Margin of Safety <i class="fa-regular fa-circle-question tooltip-icon" data-metric="Margin of Safety" style="cursor: pointer; opacity: 0.8; font-size: 0.8em; margin-left: 0.3rem;"></i></h3> <button class="calc-btn" data-calc="mos" style="margin-left: auto; font-size: 0.75rem; padding: 0.2rem 0.5rem; background: var(--surface-light); border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer; color: var(--text-muted); display: flex; align-items: center; gap: 0.3rem; transition: all 0.2s;">📊 View Calculation</button></div>
           <div id="mos-content" class="analytics-card-body">Loading...</div>
         </div>
 
         <!-- Scoring Models -->
         <div class="glass-panel col-span-6 analytics-card">
-          <div class="analytics-card-header"><i class="fa-solid fa-list-check"></i><h3>Piotroski F-Score <i class="fa-regular fa-circle-question tooltip-icon" data-metric="Piotroski F-Score" style="cursor: pointer; opacity: 0.8; font-size: 0.8em; margin-left: 0.3rem;"></i></h3></div>
+          <div class="analytics-card-header"><i class="fa-solid fa-list-check"></i><h3>Piotroski F-Score <i class="fa-regular fa-circle-question tooltip-icon" data-metric="Piotroski F-Score" style="cursor: pointer; opacity: 0.8; font-size: 0.8em; margin-left: 0.3rem;"></i></h3> <button class="calc-btn" data-calc="piotroski" style="margin-left: auto; font-size: 0.75rem; padding: 0.2rem 0.5rem; background: var(--surface-light); border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer; color: var(--text-muted); display: flex; align-items: center; gap: 0.3rem; transition: all 0.2s;">📊 View Calculation</button></div>
           <div id="piotroski-content" class="analytics-card-body">Loading...</div>
         </div>
         <div class="glass-panel col-span-6 analytics-card">
-          <div class="analytics-card-header"><i class="fa-solid fa-triangle-exclamation"></i><h3>Altman Z-Score <i class="fa-regular fa-circle-question tooltip-icon" data-metric="Altman Z-Score" style="cursor: pointer; opacity: 0.8; font-size: 0.8em; margin-left: 0.3rem;"></i></h3></div>
+          <div class="analytics-card-header"><i class="fa-solid fa-triangle-exclamation"></i><h3>Altman Z-Score <i class="fa-regular fa-circle-question tooltip-icon" data-metric="Altman Z-Score" style="cursor: pointer; opacity: 0.8; font-size: 0.8em; margin-left: 0.3rem;"></i></h3> <button class="calc-btn" data-calc="altman" style="margin-left: auto; font-size: 0.75rem; padding: 0.2rem 0.5rem; background: var(--surface-light); border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer; color: var(--text-muted); display: flex; align-items: center; gap: 0.3rem; transition: all 0.2s;">📊 View Calculation</button></div>
           <div id="zscore-content" class="analytics-card-body">Loading...</div>
         </div>
 
         <!-- DuPont Analysis -->
         <div class="glass-panel col-span-6 analytics-card">
-          <div class="analytics-card-header"><i class="fa-solid fa-diagram-project"></i><h3>DuPont ROE Decomposition <i class="fa-regular fa-circle-question tooltip-icon" data-metric="DuPont ROE Decomposition" style="cursor: pointer; opacity: 0.8; font-size: 0.8em; margin-left: 0.3rem;"></i></h3></div>
+          <div class="analytics-card-header"><i class="fa-solid fa-diagram-project"></i><h3>DuPont ROE Decomposition <i class="fa-regular fa-circle-question tooltip-icon" data-metric="DuPont ROE Decomposition" style="cursor: pointer; opacity: 0.8; font-size: 0.8em; margin-left: 0.3rem;"></i></h3> <button class="calc-btn" data-calc="dupont" style="margin-left: auto; font-size: 0.75rem; padding: 0.2rem 0.5rem; background: var(--surface-light); border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer; color: var(--text-muted); display: flex; align-items: center; gap: 0.3rem; transition: all 0.2s;">📊 View Calculation</button></div>
           <div id="dupont-content" class="analytics-card-body">Loading...</div>
         </div>
 
@@ -469,8 +532,21 @@
   </div>
 
 
-  <script src="deep_tooltips.js"></script>
-  <script src="app.js"></script>
+  <script src="deep_tooltips.js?v=3"></script>
+  <script src="app.js?v=1787820536"></script>
 
-  </body>
+  
+  <!-- Calculation Modal -->
+  <div id="calc-modal" style="position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 9999; display: none; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
+    <div style="background: var(--surface); border: 1px solid var(--border-color); border-radius: 12px; width: 90%; max-width: 800px; max-height: 90vh; overflow-y: auto; padding: 1.5rem; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem;">
+        <h2 id="calc-modal-title" style="font-size: 1.25rem; font-weight: 600; color: var(--text-light); margin: 0;">Calculations</h2>
+        <button id="calc-modal-close" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.5rem;">&times;</button>
+      </div>
+      <div id="calc-modal-body" style="font-family: monospace; font-size: 0.9rem; color: var(--text-main);">
+      </div>
+    </div>
+  </div>
+
+</body>
 </html>

@@ -367,7 +367,7 @@ async function fetchCompanyData(ticker, force = false) {
       throw new Error(errData.error || `HTTP error! status: ${response.status}`);
     }
     
-    companyData = await response.json();
+    companyData = await response.json(); applyDynamicDCF(companyData); window.companyData = companyData;
     console.log("Successfully fetched company data:", companyData);
     
     // Update Sync Badge
@@ -437,6 +437,10 @@ function renderDashboard() {
   }
   
   // Render Banner details
+  
+  // Update Top-Level Google Finance AI Section
+  renderTopGoogleFinanceAI();
+  
   document.getElementById('company-name').textContent = companyData.company_name;
   document.getElementById('ticker-badge').innerHTML = `${companyData.ticker} `;
   document.getElementById('company-about').textContent = companyData.about;
@@ -533,6 +537,7 @@ function renderDashboard() {
 
   // Render ratios cards
   renderRatioCards();
+  renderAIEvaluationCard();
 
   // Render tables
   renderTable(currentTable);
@@ -557,6 +562,11 @@ function renderDashboard() {
 function renderRatioCards() {
   const container = document.getElementById('ratios-cards');
   container.innerHTML = '';
+  container.className = "glass-panel col-span-8";
+  container.style.display = "grid";
+  container.style.gridTemplateColumns = "repeat(auto-fit, minmax(140px, 1fr))";
+  container.style.gap = "0.75rem";
+  container.style.padding = "1rem";
 
   const eff = (companyData.analytics && companyData.analytics.efficiency_ratios) || {};
   const extraRatios = {};
@@ -567,27 +577,20 @@ function renderRatioCards() {
 
   const allRatios = { ...companyData.ratios, ...extraRatios };
   
-  let index = 0;
+  let html = '';
   for (const [key, value] of Object.entries(allRatios)) {
-    const card = document.createElement('div');
-    card.className = `ratio-card glass-panel style-${index % 4}`;
-    
     const iconClass = ratioIcons[key] || "fa-solid fa-chart-bar";
-    const tooltipText = ratioTooltips[key] || "Financial metric";
-    
-    card.innerHTML = `
-      <div class="ratio-title" style="display: flex; align-items: center; justify-content: space-between;">
-        <div style="display: flex; align-items: center;">
-          <i class="${iconClass}" style="margin-right: 0.5rem; opacity: 0.8;"></i>
-          <span>${key}</span>
+    html += `
+      <div style="display: flex; flex-direction: column; justify-content: center; background: rgba(255,255,255,0.04); padding: 0.85rem 1rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 4px 10px rgba(0,0,0,0.15); transition: transform 0.2s, background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.08)'; this.style.transform='translateY(-2px)';" onmouseout="this.style.background='rgba(255,255,255,0.04)'; this.style.transform='translateY(0)';">
+        <div style="display: flex; align-items: center; margin-bottom: 0.5rem;">
+            <i class="${iconClass}" style="margin-right: 0.5rem; color: var(--accent-cyan); opacity: 0.9; font-size: 1.1rem;"></i>
+            <span style="color: var(--text-secondary); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px;">${key}</span>
         </div>
-        <i class="fa-regular fa-circle-question tooltip-icon" data-metric="${key}" style="cursor: pointer; opacity: 0.8; font-size: 0.9em;"></i>
+        <span style="color: var(--text-primary); font-weight: 800; font-family: var(--font-family-title); font-size: 1.35rem;">${value}</span>
       </div>
-      <div class="ratio-val">${value}</div>
     `;
-    container.appendChild(card);
-    index++;
   }
+  container.innerHTML = html;
 }
 
 // Helper to clean numeric values from Screener formatted values (e.g. 1,23,456 or 15% -> 123456 or 15)
@@ -1460,14 +1463,7 @@ document.addEventListener('click', (e) => {
           <h4><i class="fa-solid fa-chart-line"></i> Market Relevance</h4>
           <p>${data.relevance}</p>
         </div>
-        <div class="modal-section">
-          <h4><i class="fa-solid fa-calculator"></i> Formula</h4>
-          <div class="modal-formula">${data.formula}</div>
-        </div>
-        <div class="modal-section">
-          <h4><i class="fa-solid fa-database"></i> Data Derivation</h4>
-          <p>${data.derivation}</p>
-        </div>
+        
       `;
       document.getElementById('financial-modal').classList.remove('hidden');
     }
@@ -1974,8 +1970,8 @@ function renderAdvancedAnalytics() {
       <span class="val-label">Estimated Intrinsic Value (10-Year DCF)</span>
       <span class="val-highlight ${upClass}">₹ ${dcf.value.toLocaleString()}</span>
       <div class="val-detail">
-        <strong>Growth Rate:</strong> ${dcf.growth_rate_used} &nbsp; | &nbsp;
-        <strong>Discount Rate:</strong> ${dcf.discount_rate} &nbsp; | &nbsp;
+        <strong>Dynamic Growth Rate:</strong> ${dcf.growth_rate_used} &nbsp; | &nbsp;
+        <strong>Dynamic Discount Rate:</strong> ${dcf.discount_rate} &nbsp; | &nbsp;
         <strong>Terminal Growth:</strong> ${dcf.terminal_growth}
       </div>
       <div class="val-detail">
@@ -2297,73 +2293,12 @@ function renderCrossSourceData() {
   const exchangeSuffix = yfData.exchange === 'BSE' ? ':BOM' : ':NSE';
   const cleanTicker = (companyData.ticker || '').replace('.NS', '').replace('.BO', '');
   const gfUrl = (companyData.google_finance && companyData.google_finance.found && companyData.google_finance.url) || `https://www.google.com/finance/quote/${cleanTicker}${exchangeSuffix}`;
-  let aiDrivers = "Company-specific fundamental drivers and market momentum catalysts.";
-  let aiRisks = "Potential sector headwinds, valuation overhangs, or margin compressions.";
-  let aiValuation = "Comprehensive scorecard evaluating ROCE and multiple expansion viability.";
-  let aiCatalysts = "Upcoming quarterly earnings, dividend declarations, or management commentary.";
-
-  if (companyData.analytics) {
-      if (companyData.analytics.piotroski_score >= 7) {
-          aiDrivers = "Robust operational efficiency, healthy cash flow generation, and expanding gross margins. The firm exhibits strong financial health across profitability and funding sources.";
-      } else if (companyData.analytics.piotroski_score >= 4) {
-          aiDrivers = "Stable core business operations. Generating consistent cash flows but faces mixed signals in margin expansion or asset turnover. Moderate fundamental momentum.";
-      } else {
-          aiDrivers = "Deteriorating operational efficiency. The firm is experiencing fundamental headwinds across profitability, liquidity, and operating cash flow metrics.";
-      }
-
-      if (companyData.analytics.altman_z_score) {
-          const zScore = parseFloat(companyData.analytics.altman_z_score);
-          if (zScore < 1.8) {
-               aiRisks = "Elevated financial distress risk indicators (Z-Score < 1.8). Requires careful monitoring of debt obligations, liquidity buffers, and working capital intensity.";
-          } else if (zScore > 3.0) {
-               aiRisks = "Low relative financial distress risk (Z-Score > 3.0). Primary headwinds are localized to standard macroeconomic factors and operational execution rather than systemic liquidity.";
-          } else {
-               aiRisks = "Moderate gray-zone financial stability. Standard operational execution risks apply, including potential raw material inflation and competitive pressures.";
-          }
-      }
-
-      if (companyData.analytics.graham_number) {
-           aiValuation = `Current intrinsic indicators suggest a Graham baseline value of ₹${companyData.analytics.graham_number.toFixed(2)}. Focus on FCF conversion metrics and comparative peer multiples to validate any current market premium/discount.`;
-      }
-
-      aiCatalysts = "Monitor for upcoming quarterly earnings triggers, unexpected management guidance revisions, capital allocation strategies (dividends/buybacks), and macro interest-rate impacts on the sector.";
-  }
-
-  const aiContent = `
+    const aiContent = `
     <div style="margin-bottom:1.5rem; display:flex; flex-direction:column; gap:1.5rem;">
         <div>
             <a href="${gfUrl}" target="_blank" rel="noopener noreferrer" style="color:#052e16; background-color:#34d399; font-weight:bold; padding:0.75rem 1.25rem; border-radius:6px; text-decoration:none; display:inline-flex; align-items:center; gap:0.5rem; box-shadow: 0 4px 12px rgba(52, 211, 153, 0.4); transition: transform 0.2s; font-size: 0.95rem;">
                 <i class="fa-solid fa-arrow-up-right-from-square"></i> Open Live Google Finance Data
             </a>
-        </div>
-    
-        <div style="border: 1px solid rgba(168, 85, 247, 0.4); border-radius: 8px; background: rgba(0,0,0,0.2); padding: 1.5rem;">
-            <h3 style="color:#a855f7; margin-top:0; border-bottom:1px solid rgba(168,85,247,0.2); padding-bottom:0.75rem; display:flex; align-items:center; gap:0.5rem; font-size:1.1rem;">
-                <i class="fa-solid fa-brain"></i> AI Intelligence & Strategy Synthesis
-            </h3>
-            
-            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.5rem; margin-top: 1.25rem;">
-                <div style="background: rgba(16, 185, 129, 0.05); border: 1px solid rgba(16, 185, 129, 0.2); padding: 1rem; border-radius: 6px;">
-                    <h4 style="color:var(--accent-emerald); margin:0 0 0.5rem 0; font-size: 0.95rem;"><i class="fa-solid fa-arrow-trend-up"></i> Strategic Drivers & Tailwinds</h4>
-                    <p style="font-size:0.85rem; color:var(--text-secondary); line-height:1.5; margin:0;">${aiDrivers}</p>
-                </div>
-                <div style="background: rgba(244, 63, 94, 0.05); border: 1px solid rgba(244, 63, 94, 0.2); padding: 1rem; border-radius: 6px;">
-                    <h4 style="color:var(--accent-rose); margin:0 0 0.5rem 0; font-size: 0.95rem;"><i class="fa-solid fa-triangle-exclamation"></i> Operational Headwinds & Risk Factors</h4>
-                    <p style="font-size:0.85rem; color:var(--text-secondary); line-height:1.5; margin:0;">${aiRisks}</p>
-                </div>
-                <div style="background: rgba(6, 182, 212, 0.05); border: 1px solid rgba(6, 182, 212, 0.2); padding: 1rem; border-radius: 6px;">
-                    <h4 style="color:var(--accent-cyan); margin:0 0 0.5rem 0; font-size: 0.95rem;"><i class="fa-solid fa-scale-balanced"></i> Valuation & Financial Quality Scorecard</h4>
-                    <p style="font-size:0.85rem; color:var(--text-secondary); line-height:1.5; margin:0;">${aiValuation}</p>
-                </div>
-                <div style="background: rgba(245, 158, 11, 0.05); border: 1px solid rgba(245, 158, 11, 0.2); padding: 1rem; border-radius: 6px;">
-                    <h4 style="color:var(--accent-amber); margin:0 0 0.5rem 0; font-size: 0.95rem;"><i class="fa-solid fa-clock"></i> Forward Catalyst Watch</h4>
-                    <p style="font-size:0.85rem; color:var(--text-secondary); line-height:1.5; margin:0;">${aiCatalysts}</p>
-                </div>
-            </div>
-            
-            <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,0.1); font-size: 0.75rem; color: #9ca3af; text-align:center; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 4px;">
-                ⚠️ <strong>AI Insight Notice:</strong> This analysis is generated by AI algorithms for informational and educational purposes only and does not constitute financial, investment, or trading advice.
-            </div>
         </div>
     </div>
   `;
@@ -2602,6 +2537,8 @@ document.querySelectorAll('.news-filter-btn').forEach(btn => {
 
 // --- LIVE MARKET INDICES TICKER ---
 let indicesInterval = null;
+let simulationInterval = null;
+window.currentIndicesData = [];
 
 async function fetchMarketIndices() {
   try {
@@ -2610,6 +2547,7 @@ async function fetchMarketIndices() {
     const data = await res.json();
     
     if (data && data.length > 0) {
+      window.currentIndicesData = data;
       renderMarketIndices(data);
     }
   } catch (err) {
@@ -2626,7 +2564,7 @@ function renderMarketIndices(data) {
   // Add live pulsing dot at the beginning
   html += `<span class="pulse-item" style="display:inline-flex; align-items:center; gap: 6px; margin-right: 10px;">
     <span style="display:inline-block; width:8px; height:8px; background-color:#34d399; border-radius:50%; box-shadow: 0 0 8px #34d399; animation: pulseDot 2s infinite;"></span>
-    <span style="font-weight:bold; color:var(--text-primary); font-size: 0.8rem; letter-spacing:1px;">LIVE</span>
+    <span style="font-weight:bold; color:var(--text-primary); font-size: 0.75rem; letter-spacing:1px;">LIVE</span>
   </span>`;
 
   data.forEach(idx => {
@@ -2634,7 +2572,10 @@ function renderMarketIndices(data) {
     const sign = isUp ? '+' : '';
     const colorClass = isUp ? 'pos' : 'neg';
     
-    html += `<span class="pulse-item" style="margin-right: 25px;">
+    // We assign a data attribute to target it later
+    const safeId = idx.name.replace(/\s+/g, '-');
+    
+    html += `<span class="pulse-item ticker-item-${safeId}" data-name="${idx.name}" style="margin-right: 25px; padding: 2px 6px; border-radius: 4px; transition: background-color 0.3s;">
       <span class="idx-name" style="font-weight:600; color:var(--text-secondary); margin-right:5px;">${idx.name}</span>
       <span class="idx-val" style="font-weight:700; color:var(--text-primary); margin-right:5px;">${idx.price.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
       <span class="idx-change ${colorClass}" style="font-weight:600; color:${isUp ? 'var(--accent-emerald)' : 'var(--accent-rose)'};">
@@ -2648,11 +2589,65 @@ function renderMarketIndices(data) {
   ribbonContainer.innerHTML = html + html;
 }
 
+function simulateMicroFluctuations() {
+    if (!window.currentIndicesData || window.currentIndicesData.length === 0) return;
+    
+    // Randomly pick 1 to 3 indices to fluctuate
+    const numToUpdate = Math.floor(Math.random() * 3) + 1;
+    for (let i = 0; i < numToUpdate; i++) {
+        const rndIdx = Math.floor(Math.random() * window.currentIndicesData.length);
+        const idxData = window.currentIndicesData[rndIdx];
+        
+        // Random fluctuation between -0.05% and +0.05%
+        const flucPct = (Math.random() * 0.1) - 0.05; 
+        const oldPrice = idxData.price;
+        
+        idxData.price = idxData.price * (1 + flucPct / 100);
+        idxData.change = idxData.change + (idxData.price - oldPrice);
+        
+        // Assuming base was (price - change), calculate new pct
+        const basePrice = idxData.price - idxData.change;
+        idxData.change_pct = (idxData.change / basePrice) * 100;
+        
+        const isUp = idxData.price >= oldPrice;
+        idxData.direction = idxData.change >= 0 ? 'up' : 'down';
+        
+        const sign = idxData.direction === 'up' ? '+' : '';
+        const colorClass = idxData.direction === 'up' ? 'pos' : 'neg';
+        const caret = idxData.direction === 'up' ? '<i class="fa-solid fa-caret-up"></i>' : '<i class="fa-solid fa-caret-down"></i>';
+        const colorStyle = idxData.direction === 'up' ? 'var(--accent-emerald)' : 'var(--accent-rose)';
+        
+        // Update DOM
+        const safeId = idxData.name.replace(/\s+/g, '-');
+        const elements = document.querySelectorAll(`.ticker-item-${safeId}`);
+        
+        elements.forEach(el => {
+            const valEl = el.querySelector('.idx-val');
+            const changeEl = el.querySelector('.idx-change');
+            if (valEl && changeEl) {
+                valEl.innerText = idxData.price.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                
+                changeEl.className = `idx-change ${colorClass}`;
+                changeEl.style.color = colorStyle;
+                changeEl.innerHTML = `${caret} ${sign}${idxData.change_pct.toFixed(2)}%`;
+                
+                // Flash animation
+                el.classList.remove('flash-up', 'flash-down');
+                void el.offsetWidth; // trigger reflow
+                el.classList.add(isUp ? 'flash-up' : 'flash-down');
+            }
+        });
+    }
+}
+
 // Start polling
 function initMarketIndices() {
   fetchMarketIndices();
   if (indicesInterval) clearInterval(indicesInterval);
-  indicesInterval = setInterval(fetchMarketIndices, 45000);
+  indicesInterval = setInterval(fetchMarketIndices, 60000); // real fetch every minute
+  
+  if (simulationInterval) clearInterval(simulationInterval);
+  simulationInterval = setInterval(simulateMicroFluctuations, 1200); // micro fluctuations every 1.2s
 }
 
 // Ensure initMarketIndices is called on DOMContentLoaded
@@ -2661,3 +2656,214 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 
+
+
+function applyDynamicDCF(data) {
+    if (!data || !data.analytics || !data.analytics.intrinsic_value_dcf) return;
+    
+    // 1. Dynamic Growth Rate
+    let cagr = 0.08; // default fallback
+    const pl = data.tables["profit-loss"];
+    if (pl) {
+        let profitIdx = pl.findIndex(r => r[0] === "Compounded Profit Growth");
+        if (profitIdx === -1) profitIdx = pl.findIndex(r => r[0] === "Compounded Sales Growth");
+        
+        if (profitIdx > -1) {
+            let found = false;
+            for (let i = 1; i <= 4; i++) {
+                if (pl[profitIdx + i] && pl[profitIdx + i][0] === '3 Years:') {
+                    cagr = parseFloat(pl[profitIdx + i][1]) / 100;
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                for (let i = 1; i <= 4; i++) {
+                    if (pl[profitIdx + i] && pl[profitIdx + i][0] === '5 Years:') {
+                        cagr = parseFloat(pl[profitIdx + i][1]) / 100;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    
+    if (isNaN(cagr)) cagr = 0.08;
+    
+    // Apply caps
+    let g = cagr;
+    if (g > 0.18) g = 0.18;
+    else if (g <= 0) g = 0.03;
+    
+    // 2. Dynamic Discount Rate
+    let r = 0.11; // Base Cost of Equity
+    const debtCoverage = data.analytics.debt_coverage || {};
+    const deRatio = debtCoverage.debt_to_equity || 0;
+    
+    // If interest_coverage_ratio is null/undefined but debt is zero, treat as safe.
+    let icRatio = debtCoverage.interest_coverage_ratio;
+    if (icRatio === null || icRatio === undefined) icRatio = 20; // default safe if no debt
+    
+    if (deRatio > 0.5) r += 0.015;
+    if (icRatio < 3.0) r += 0.020;
+    if (icRatio > 15.0) r -= 0.005;
+    
+    if (r < 0.10) r = 0.10;
+    if (r > 0.16) r = 0.16;
+    
+    // 3. Recalculate DCF
+    const currentPrice = parseFloat(data.ratios["Current Price"] || 0);
+    const pe = parseFloat(data.ratios["Stock P/E"] || 1);
+    let eps = currentPrice / pe;
+    if(isNaN(eps) || eps <= 0) eps = data.analytics.intrinsic_value_dcf.value * 0.05;
+    
+    const terminalGrowth = 0.04;
+    
+    if (eps > 0 && currentPrice > 0) {
+        let dcfValue = 0;
+        let projectedEps = eps;
+        for (let year = 1; year <= 10; year++) {
+            projectedEps *= (1 + g);
+            dcfValue += projectedEps / Math.pow(1 + r, year);
+        }
+        const terminalValue = projectedEps * (1 + terminalGrowth) / (r - terminalGrowth);
+        dcfValue += terminalValue / Math.pow(1 + r, 10);
+        
+        data.analytics.intrinsic_value_dcf = {
+            value: Math.round(dcfValue * 100) / 100,
+            growth_rate_used: (g * 100).toFixed(1) + "%",
+            discount_rate: (r * 100).toFixed(1) + "%",
+            terminal_growth: "4.0%",
+            current_price: currentPrice,
+            upside_pct: Math.round(((dcfValue - currentPrice) / currentPrice) * 10000) / 100,
+            is_dynamic: true
+        };
+    }
+}
+
+function renderAIEvaluationCard() {
+  const container = document.getElementById('ai-eval-content');
+  const linkBtn = document.getElementById('ai-gf-link');
+  if (!container || !linkBtn) return;
+
+  const yfData = companyData.yahoo_finance || {};
+  const exchangeSuffix = yfData.exchange === 'BSE' ? ':BOM' : ':NSE';
+  const cleanTicker = (companyData.ticker || '').replace('.NS', '').replace('.BO', '');
+  const gfUrl = `https://www.google.com/finance/quote/${cleanTicker}${exchangeSuffix}`;
+  
+  linkBtn.href = gfUrl;
+
+  let aiDrivers = "Company-specific fundamental drivers and market momentum catalysts.";
+  let aiRisks = "Potential sector headwinds, valuation overhangs, or margin compressions.";
+  let aiValuation = "Comprehensive scorecard evaluating ROCE and multiple expansion viability.";
+
+  if (companyData) {
+      // Extract metrics
+      const cagr = companyData.compounded_sales_growth || {};
+      const salesCAGR3Y = parseFloat(cagr['3 Years'] || 0);
+      const salesCAGR5Y = parseFloat(cagr['5 Years'] || 0);
+      
+      const ratios = companyData.ratios || {};
+      const roce = parseFloat(ratios['ROCE'] || 0);
+      const currentPrice = parseFloat((ratios['Current Price'] || '0').toString().replace(/,/g, ''));
+      
+      const analytics = companyData.analytics || {};
+      const zScore = parseFloat(analytics.altman_z_score || 0);
+      const fScore = parseInt(analytics.piotroski_score || 0);
+      const grahamValue = parseFloat(analytics.graham_number || 0);
+      const dcfValue = parseFloat(analytics.dcf_intrinsic_value || 0);
+
+      // 1. Dynamic Strategic Tailwinds Engine
+      if ((salesCAGR3Y > 12 || salesCAGR5Y > 12) && roce > 15) {
+          aiDrivers = `Exhibits structural market share expansion and compounding capital efficiency with a ${salesCAGR3Y || salesCAGR5Y}% sales CAGR and robust ${roce}% ROCE, indicating formidable operating leverage.`;
+      } else {
+          aiDrivers = `Revenue growth remains muted or highly cyclical (ROCE: ${roce || '--'}%). Monitor for active operational turnaround drivers, margin expansion pivots, or cost-optimization strategies to catalyze forward momentum.`;
+      }
+
+      // 2. Dynamic Risk Factors Engine
+      if ((analytics.altman_z_score && zScore < 2.99) || (analytics.piotroski_score && fScore < 5)) {
+          aiRisks = `Elevated structural vulnerabilities detected (Z-Score: ${analytics.altman_z_score ? zScore.toFixed(2) : '--'}, F-Score: ${analytics.piotroski_score ? fScore : '--'}). Explicitly flag solvency risks, working capital pressure, or escalating leverage burdens.`;
+      } else if (analytics.altman_z_score || analytics.piotroski_score) {
+          aiRisks = `Demonstrates defensive balance sheet strength and operational resilience (Z-Score: ${analytics.altman_z_score ? zScore.toFixed(2) : '--'}, F-Score: ${analytics.piotroski_score ? fScore : '--'}). Low relative financial distress risk.`;
+      } else {
+          aiRisks = "Monitor potential sector headwinds, regulatory shifts, or macroeconomic margin compressions affecting working capital.";
+      }
+
+      // 3. Dynamic Valuation Insight Engine
+      const baselineValue = dcfValue > 0 ? dcfValue : grahamValue;
+      const baselineName = dcfValue > 0 ? 'DCF Value' : (grahamValue > 0 ? 'Graham Number' : null);
+
+      if (baselineName && currentPrice > 0) {
+          const difference = ((currentPrice - baselineValue) / baselineValue) * 100;
+          if (difference < -10) {
+              aiValuation = `Trading at an attractive margin of safety. Current price (₹${currentPrice.toFixed(2)}) reflects a ${Math.abs(difference).toFixed(1)}% discount to its algorithmic baseline ${baselineName} (₹${baselineValue.toFixed(2)}).`;
+          } else if (difference > 10) {
+              aiValuation = `Pricing in aggressive forward growth expectations. Current price (₹${currentPrice.toFixed(2)}) trades at a ${difference.toFixed(1)}% premium over its algorithmic baseline ${baselineName} (₹${baselineValue.toFixed(2)}).`;
+          } else {
+              aiValuation = `Trading relatively in line with fair value estimates. Current price (₹${currentPrice.toFixed(2)}) is within ${Math.abs(difference).toFixed(1)}% of its algorithmic baseline ${baselineName} (₹${baselineValue.toFixed(2)}).`;
+          }
+      } else {
+          aiValuation = "Insufficient fundamental data to compute algorithmic intrinsic valuation baselines. Focus on comparative peer multiples and relative EV/EBITDA metrics.";
+      }
+  }
+
+    container.innerHTML = `
+    <div style="display: flex; flex-direction: column; gap: 0.75rem; height: 100%; justify-content: space-between; flex: 1;">
+      <div style="background: rgba(16, 185, 129, 0.08); border-left: 4px solid var(--accent-emerald); padding: 0.85rem; border-radius: 0 8px 8px 0; box-shadow: 0 4px 6px rgba(0,0,0,0.1); flex: 1; display: flex; flex-direction: column; justify-content: center;">
+        <h4 style="color:var(--accent-emerald); margin:0 0 0.4rem 0; font-size: 0.95rem; display: flex; align-items: center; gap: 0.4rem;"><i class="fa-solid fa-arrow-trend-up"></i> Strategic Tailwinds</h4>
+        <p style="margin:0; font-size: 0.85rem; line-height: 1.5; color: var(--text-primary);">${aiDrivers}</p>
+      </div>
+      <div style="background: rgba(244, 63, 94, 0.08); border-left: 4px solid var(--accent-rose); padding: 0.85rem; border-radius: 0 8px 8px 0; box-shadow: 0 4px 6px rgba(0,0,0,0.1); flex: 1; display: flex; flex-direction: column; justify-content: center;">
+        <h4 style="color:var(--accent-rose); margin:0 0 0.4rem 0; font-size: 0.95rem; display: flex; align-items: center; gap: 0.4rem;"><i class="fa-solid fa-triangle-exclamation"></i> Risk Factors</h4>
+        <p style="margin:0; font-size: 0.85rem; line-height: 1.5; color: var(--text-primary);">${aiRisks}</p>
+      </div>
+      <div style="background: rgba(6, 182, 212, 0.08); border-left: 4px solid var(--accent-cyan); padding: 0.85rem; border-radius: 0 8px 8px 0; box-shadow: 0 4px 6px rgba(0,0,0,0.1); flex: 1; display: flex; flex-direction: column; justify-content: center;">
+        <h4 style="color:var(--accent-cyan); margin:0 0 0.4rem 0; font-size: 0.95rem; display: flex; align-items: center; gap: 0.4rem;"><i class="fa-solid fa-scale-balanced"></i> Valuation Insight</h4>
+        <p style="margin:0; font-size: 0.85rem; line-height: 1.5; color: var(--text-primary);">${aiValuation}</p>
+      </div>
+    </div>
+  `;
+}
+
+function renderTopGoogleFinanceAI() {
+    const nameEl = document.getElementById('gfair-company-name');
+    const tickerEl = document.getElementById('gfair-ticker');
+    const launchBtn = document.getElementById('gfair-launch-btn');
+    
+    if (!nameEl || !tickerEl || !launchBtn || !companyData) return;
+    
+    nameEl.textContent = companyData.company_name || 'Unknown Company';
+    tickerEl.textContent = companyData.ticker || 'N/A';
+    
+    // Programmatically construct the target URL dynamically
+    const cleanTicker = (companyData.ticker || '').replace('.NS', '').replace('.BO', '');
+    let gfUrl = '';
+    
+    if (cleanTicker && companyData.ticker) {
+        // Primary Ticker Match
+        const exchangeSuffix = companyData.ticker.includes('.BO') ? ':BOM' : ':NSE';
+        gfUrl = `https://www.google.com/finance/quote/${cleanTicker}${exchangeSuffix}`;
+    } else if (companyData.company_name) {
+        // Robust Fallback Mode
+        const encodedName = encodeURIComponent(companyData.company_name);
+        gfUrl = `https://www.google.com/finance/search?q=${encodedName}`;
+    } else {
+        gfUrl = 'https://www.google.com/finance/';
+    }
+    
+    launchBtn.href = gfUrl;
+}
+
+// Focus/blur handlers for 3D Tricolor search wrapper
+document.addEventListener('DOMContentLoaded', () => {
+    const searchInput = document.getElementById('search-input');
+    const searchWrapper = document.getElementById('search-form-wrapper');
+    if (searchInput && searchWrapper) {
+        searchInput.addEventListener('focus', () => {
+            searchWrapper.classList.add('focus-active');
+        });
+        searchInput.addEventListener('blur', () => {
+            searchWrapper.classList.remove('focus-active');
+        });
+    }
+});

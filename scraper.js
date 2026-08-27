@@ -890,10 +890,17 @@ export async function fetchMarketIndices() {
     const symbols = [
         { ticker: '^NSEI', name: 'NIFTY 50' },
         { ticker: '^BSESN', name: 'SENSEX' },
-        { ticker: '^NSEBANK', name: 'NIFTY BANK' },
-        { ticker: '^CNXIT', name: 'NIFTY IT' },
+        { ticker: '^NSEBANK', name: 'BANKNIFTY' },
         { ticker: '^CNXAUTO', name: 'NIFTY AUTO' },
-        { ticker: '^INDIAVIX', name: 'INDIA VIX' }
+        { ticker: '^CNXENERGY', name: 'NIFTY ENERGY' },
+        { ticker: '^CNXFIN', name: 'NIFTY FIN' },
+        { ticker: '^CNXFMCG', name: 'NIFTY FMCG' },
+        { ticker: '^CNXINFRA', name: 'NIFTY INFRA' },
+        { ticker: '^CNXIT', name: 'NIFTY IT' },
+        { ticker: '^CNXMEDIA', name: 'NIFTY MEDIA' },
+        { ticker: '^CNXMETAL', name: 'NIFTY METAL' },
+        { ticker: '^CNXPHARMA', name: 'NIFTY PHARMA' },
+        { ticker: '^CNXREALTY', name: 'NIFTY REALTY' }
     ];
 
     try {
