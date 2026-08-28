@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <link rel="stylesheet" href="style.css?v=1787820536">
+  <link rel="stylesheet" href="style.css?v=1787881134">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="calc_logic.js?v=5" defer></script>
 </head>
@@ -256,11 +256,10 @@
       <nav class="col-span-12 tab-nav glass-panel">
         <button class="tab-btn active" onclick="switchTab('tab-charts')"><i class="fa-solid fa-chart-simple"></i> Visualizer (8 Charts)</button>
         <button class="tab-btn" onclick="switchTab('tab-analytics')"><i class="fa-solid fa-flask"></i> Advanced Analytics</button>
-        <button class="tab-btn" onclick="switchTab('tab-insights')"><i class="fa-solid fa-brain"></i> Insights</button>
+        <button class="tab-btn" onclick="switchTab('tab-news')"><i class="fa-solid fa-newspaper"></i> Latest News</button>
         <button class="tab-btn" onclick="switchTab('tab-tables')"><i class="fa-solid fa-table"></i> Statements</button>
         <button class="tab-btn" onclick="switchTab('tab-cross-source')"><i class="fa-solid fa-code-compare"></i> Cross-Source</button>
-        <button class="tab-btn" onclick="switchTab('tab-news')"><i class="fa-solid fa-newspaper"></i> Latest News</button>
-      </nav>
+        </nav>
 
       <!-- TAB 1: Visualizer Charts -->
       <section id="tab-charts" class="tab-content col-span-12 active grid-sub">
@@ -376,26 +375,6 @@
         <div class="glass-panel col-span-12 analytics-card">
           <div class="analytics-card-header"><i class="fa-solid fa-star"></i><h3>Growth Quality Score</h3></div>
           <div id="growth-quality-content" class="analytics-card-body">Loading...</div>
-        </div>
-      </section>
-
-      <!-- TAB 3: Insights -->
-      <section id="tab-insights" class="tab-content col-span-12 grid-sub hidden">
-        <div class="insights-summary-card glass-panel col-span-4">
-          <h3><i class="fa-solid fa-circle-check" style="color:var(--accent-emerald)"></i> Strengths</h3>
-          <ul id="insights-positives" class="insights-list positive"></ul>
-        </div>
-        <div class="insights-summary-card glass-panel col-span-4">
-          <h3><i class="fa-solid fa-circle-xmark" style="color:var(--accent-rose)"></i> Warnings</h3>
-          <ul id="insights-negatives" class="insights-list negative"></ul>
-        </div>
-        <div class="insights-summary-card glass-panel col-span-4">
-          <h3><i class="fa-solid fa-gauge" style="color:var(--accent-cyan)"></i> Efficiency Scorecard</h3>
-          <div class="scorecard-body" id="scorecard-content"></div>
-        </div>
-        <div class="glass-panel col-span-12 compound-rates-card">
-          <h3>Compounded Growth Rates</h3>
-          <div class="grid-4" id="compound-rates-content"></div>
         </div>
       </section>
 
@@ -533,7 +512,7 @@
 
 
   <script src="deep_tooltips.js?v=3"></script>
-  <script src="app.js?v=1787820536"></script>
+  <script src="app.js?v=1787881995"></script>
 
   
   <!-- Calculation Modal -->

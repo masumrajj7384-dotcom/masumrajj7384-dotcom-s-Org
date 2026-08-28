@@ -1698,10 +1698,12 @@ function generateInsights() {
   
   // Render lists
   const posList = document.getElementById('insights-positives');
+  if (posList) {
   posList.innerHTML = positives.map(p => `<li><i class="fa-solid fa-circle-check"></i><span>${markdownToHtml(p)}</span></li>`).join('');
   
   const negList = document.getElementById('insights-negatives');
   negList.innerHTML = negatives.map(n => `<li><i class="fa-solid fa-circle-xmark"></i><span>${markdownToHtml(n)}</span></li>`).join('');
+  }
 
   // 5. Scorecard & Ratings Computation
   computeScorecard();
@@ -1757,6 +1759,7 @@ function computeScorecard() {
   }
   
   const scorecardContainer = document.getElementById('scorecard-content');
+  if (!scorecardContainer) return;
   
   const items = [
     { label: 'Profitability Metric (ROE/ROCE)', score: pScore, color: 'var(--accent-emerald)' },
@@ -1780,6 +1783,7 @@ function computeScorecard() {
 // Render growth box list
 function renderGrowthRates() {
   const container = document.getElementById('compound-rates-content');
+  if (!container) return;
   container.innerHTML = '';
   
   const pnlTable = companyData.tables['profit-loss'];
